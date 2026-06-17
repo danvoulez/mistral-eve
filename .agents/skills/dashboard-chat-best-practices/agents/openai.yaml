@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dashboard Chat Best Practices"
+  short_description: "Build polished dashboard chat UX"
+  default_prompt: "Use $dashboard-chat-best-practices to refine static shell, hydration, optimistic messaging, and dashboard chat styling."
