@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const STREAM_TEXT_TICK_MS = 60;
+const STREAM_TEXT_CACHE_LIMIT = 40;
+const streamingTextCache = new Map<string, string>();
 
 export type AgentInputResponse = {
   readonly optionId?: string;
@@ -60,6 +62,7 @@ export function AgentMessage({
           canRespond={canRespond}
           isUser={isUser}
           lastTextIndex={lastTextIndex}
+          messageId={message.id}
           onInputResponses={onInputResponses}
           parts={message.parts}
           showCaret={isStreaming && message.role === "assistant"}
@@ -73,6 +76,7 @@ function AgentMessageParts({
   canRespond,
   isUser,
   lastTextIndex,
+  messageId,
   onInputResponses,
   parts,
   showCaret,
@@ -80,6 +84,7 @@ function AgentMessageParts({
   readonly canRespond: boolean;
   readonly isUser: boolean;
   readonly lastTextIndex: number;
+  readonly messageId: string;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly parts: readonly EveMessagePart[];
   readonly showCaret: boolean;
@@ -113,14 +118,17 @@ function AgentMessageParts({
     }
 
     flushTools(true);
+    const key = partKey(part, index);
+
     elements.push(
       <AgentMessagePart
         canRespond={canRespond}
         isUser={isUser}
-        key={partKey(part, index)}
+        key={key}
         onInputResponses={onInputResponses}
         part={part}
         showCaret={showCaret && index === lastTextIndex}
+        streamKey={`${messageId}:${key}`}
       />,
     );
   });
@@ -136,12 +144,14 @@ function AgentMessagePart({
   onInputResponses,
   part,
   showCaret,
+  streamKey,
 }: {
   readonly canRespond: boolean;
   readonly isUser: boolean;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly part: EveMessagePart;
   readonly showCaret: boolean;
+  readonly streamKey: string;
 }) {
   switch (part.type) {
     case "step-start":
@@ -150,7 +160,7 @@ function AgentMessagePart({
       return isUser ? (
         <UserTextPart text={part.text} />
       ) : (
-        <AssistantTextPart showCaret={showCaret} text={part.text} />
+        <AssistantTextPart showCaret={showCaret} streamKey={streamKey} text={part.text} />
       );
     case "reasoning":
       return <ReasoningPart isStreaming={part.state === "streaming"} text={part.text} />;
@@ -165,27 +175,32 @@ function UserTextPart({ text }: { readonly text: string }) {
 
 function AssistantTextPart({
   showCaret,
+  streamKey,
   text,
 }: {
   readonly showCaret: boolean;
+  readonly streamKey: string;
   readonly text: string;
 }) {
-  const smoothedText = useStreamingText(text, showCaret);
+  const smoothedText = useStreamingText(text, showCaret, streamKey);
+  const isRevealActive = smoothedText.length > 0 && (showCaret || smoothedText !== text);
   const showVisibleCaret = showCaret && smoothedText.length > 0;
 
   return (
     <Markdown
-      animated={showVisibleCaret ? { duration: 0, stagger: 0 } : undefined}
+      animated={isRevealActive ? { duration: 0, stagger: 0 } : undefined}
       caret={showVisibleCaret ? "block" : undefined}
-      isAnimating={showVisibleCaret}
+      isAnimating={isRevealActive}
     >
       {smoothedText}
     </Markdown>
   );
 }
 
-function useStreamingText(text: string, isStreaming: boolean) {
-  const [visibleText, setVisibleText] = useState(() => (isStreaming ? "" : text));
+function useStreamingText(text: string, isStreaming: boolean, streamKey: string) {
+  const [visibleText, setVisibleText] = useState(() =>
+    getInitialStreamingText(text, isStreaming, streamKey),
+  );
   const visibleTextRef = useRef(visibleText);
 
   useEffect(() => {
@@ -198,6 +213,7 @@ function useStreamingText(text: string, isStreaming: boolean) {
     if (!isStreaming && (current === text || !text.startsWith(current))) {
       if (current !== text) {
         visibleTextRef.current = text;
+        rememberStreamingText(streamKey, text);
         setVisibleText(text);
       }
 
@@ -212,6 +228,7 @@ function useStreamingText(text: string, isStreaming: boolean) {
 
       if (next !== visibleTextRef.current) {
         visibleTextRef.current = next;
+        rememberStreamingText(streamKey, next);
         setVisibleText(next);
       }
 
@@ -234,9 +251,44 @@ function useStreamingText(text: string, isStreaming: boolean) {
         window.clearInterval(interval);
       }
     };
-  }, [isStreaming, text]);
+  }, [isStreaming, streamKey, text]);
+
+  useEffect(() => {
+    if (!isStreaming && visibleText === text) {
+      streamingTextCache.delete(streamKey);
+    }
+  }, [isStreaming, streamKey, text, visibleText]);
 
   return visibleText;
+}
+
+function getInitialStreamingText(text: string, isStreaming: boolean, streamKey: string) {
+  const cachedText = streamingTextCache.get(streamKey);
+
+  if (cachedText && text.startsWith(cachedText)) {
+    return cachedText;
+  }
+
+  return isStreaming ? "" : text;
+}
+
+function rememberStreamingText(streamKey: string, text: string) {
+  if (!text) {
+    return;
+  }
+
+  streamingTextCache.delete(streamKey);
+  streamingTextCache.set(streamKey, text);
+
+  if (streamingTextCache.size <= STREAM_TEXT_CACHE_LIMIT) {
+    return;
+  }
+
+  const oldestKey = streamingTextCache.keys().next().value;
+
+  if (oldestKey) {
+    streamingTextCache.delete(oldestKey);
+  }
 }
 
 function nextStreamingText(current: string, target: string, catchUp = false) {
