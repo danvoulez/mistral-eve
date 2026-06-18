@@ -1000,18 +1000,6 @@ export function AgentChatSession({
 
   const prepareSend = useCallback(
     async (firstMessage: string) => {
-      setClientError(null);
-
-      if (!isSetupReady) {
-        setClientError("Finish the required Neon and Better Auth setup before chatting.");
-        return false;
-      }
-
-      if (!viewer) {
-        requestSignIn(firstMessage);
-        return false;
-      }
-
       const limit = await checkSendLimitAction({ message: firstMessage });
 
       if (!limit.allowed) {
@@ -1036,7 +1024,7 @@ export function AgentChatSession({
 
       return true;
     },
-    [isSetupReady, requestSignIn, router, setShellActiveChatId, touchChat, viewer],
+    [router, setShellActiveChatId, touchChat],
   );
 
   const sendMessage = useCallback(
@@ -1074,6 +1062,24 @@ export function AgentChatSession({
       };
       let ready = false;
 
+      setClientError(null);
+
+      if (!isSetupReady) {
+        setClientError("Finish the required Neon and Better Auth setup before chatting.");
+        return;
+      }
+
+      if (!viewer) {
+        requestSignIn(message);
+        return;
+      }
+
+      resumedEventsRef.current = [];
+      setResumedEvents([]);
+      setIsResuming(false);
+      showLocalPendingMessage();
+      onPendingUserMessageSettled?.(message);
+
       try {
         ready = await prepareSend(message);
       } catch (error) {
@@ -1099,12 +1105,6 @@ export function AgentChatSession({
         restoreAfterFailedSend("Chat is still getting ready.");
         return;
       }
-
-      resumedEventsRef.current = [];
-      setResumedEvents([]);
-      setIsResuming(false);
-      showLocalPendingMessage();
-      onPendingUserMessageSettled?.(message);
 
       try {
         const updated = await markChatPendingMessageAction({
@@ -1144,6 +1144,7 @@ export function AgentChatSession({
       isTurnBlocked,
       isWaitingForAuthorization,
       prepareSend,
+      requestSignIn,
       setLocalPendingUserMessage,
       startFinalizingTurn,
       stopFinalizingTurn,
