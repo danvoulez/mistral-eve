@@ -13,12 +13,10 @@ import type { EveMessage } from "eve/react";
 import { defaultMessageReducer, useEveAgent } from "eve/react";
 import {
   AlertCircleIcon,
-  CheckIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
   LockIcon,
   PlugIcon,
-  UploadIcon,
   XIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -2019,59 +2017,7 @@ function ThinkingMessage({ isVisible }: { readonly isVisible: boolean }) {
 }
 
 function SessionHeader() {
-  const [copied, setCopied] = useState(false);
-  const copyResetTimerRef = useRef<number | null>(null);
-
-  const clearCopyResetTimer = useCallback(() => {
-    if (copyResetTimerRef.current === null) {
-      return;
-    }
-
-    window.clearTimeout(copyResetTimerRef.current);
-    copyResetTimerRef.current = null;
-  }, []);
-
-  const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      clearCopyResetTimer();
-      setCopied(true);
-      copyResetTimerRef.current = window.setTimeout(() => {
-        copyResetTimerRef.current = null;
-        setCopied(false);
-      }, 1600);
-    } catch {
-      setCopied(false);
-    }
-  }, [clearCopyResetTimer]);
-
-  useEffect(() => clearCopyResetTimer, [clearCopyResetTimer]);
-
-  return (
-    <div className="relative h-12 shrink-0">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-label={copied ? "Copied chat link" : "Copy chat link"}
-            className="absolute top-2 right-3 text-muted-foreground hover:text-foreground"
-            onClick={handleCopyLink}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            {copied ? (
-              <CheckIcon className="size-4" />
-            ) : (
-              <UploadIcon className="size-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          {copied ? "Copied" : "Copy link"}
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
+  return <div className="h-12 shrink-0" />;
 }
 
 function BlankChatBody() {
