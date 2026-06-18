@@ -8,12 +8,16 @@ import {
   Loader2Icon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+const STREAM_TEXT_TICK_MS = 60;
+const STREAM_TEXT_CACHE_LIMIT = 40;
+const streamingTextCache = new Map<string, string>();
 
 export type AgentInputResponse = {
   readonly optionId?: string;
@@ -58,6 +62,7 @@ export function AgentMessage({
           canRespond={canRespond}
           isUser={isUser}
           lastTextIndex={lastTextIndex}
+          messageId={message.id}
           onInputResponses={onInputResponses}
           parts={message.parts}
           showCaret={isStreaming && message.role === "assistant"}
@@ -71,6 +76,7 @@ function AgentMessageParts({
   canRespond,
   isUser,
   lastTextIndex,
+  messageId,
   onInputResponses,
   parts,
   showCaret,
@@ -78,6 +84,7 @@ function AgentMessageParts({
   readonly canRespond: boolean;
   readonly isUser: boolean;
   readonly lastTextIndex: number;
+  readonly messageId: string;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly parts: readonly EveMessagePart[];
   readonly showCaret: boolean;
@@ -111,14 +118,17 @@ function AgentMessageParts({
     }
 
     flushTools(true);
+    const key = partKey(part, index);
+
     elements.push(
       <AgentMessagePart
         canRespond={canRespond}
         isUser={isUser}
-        key={partKey(part, index)}
+        key={key}
         onInputResponses={onInputResponses}
         part={part}
         showCaret={showCaret && index === lastTextIndex}
+        streamKey={`${messageId}:${key}`}
       />,
     );
   });
@@ -134,12 +144,14 @@ function AgentMessagePart({
   onInputResponses,
   part,
   showCaret,
+  streamKey,
 }: {
   readonly canRespond: boolean;
   readonly isUser: boolean;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly part: EveMessagePart;
   readonly showCaret: boolean;
+  readonly streamKey: string;
 }) {
   switch (part.type) {
     case "step-start":
@@ -148,7 +160,7 @@ function AgentMessagePart({
       return isUser ? (
         <UserTextPart text={part.text} />
       ) : (
-        <AssistantTextPart showCaret={showCaret} text={part.text} />
+        <AssistantTextPart showCaret={showCaret} streamKey={streamKey} text={part.text} />
       );
     case "reasoning":
       return <ReasoningPart isStreaming={part.state === "streaming"} text={part.text} />;
@@ -163,16 +175,153 @@ function UserTextPart({ text }: { readonly text: string }) {
 
 function AssistantTextPart({
   showCaret,
+  streamKey,
   text,
 }: {
   readonly showCaret: boolean;
+  readonly streamKey: string;
   readonly text: string;
 }) {
+  const smoothedText = useStreamingText(text, showCaret, streamKey);
+  const isRevealActive = smoothedText.length > 0 && (showCaret || smoothedText !== text);
+  const showVisibleCaret = showCaret && smoothedText.length > 0;
+
   return (
-    <Markdown caret="block" isAnimating={showCaret}>
-      {text}
+    <Markdown
+      animated={isRevealActive ? { duration: 0, stagger: 0 } : undefined}
+      caret={showVisibleCaret ? "block" : undefined}
+      isAnimating={isRevealActive}
+    >
+      {smoothedText}
     </Markdown>
   );
+}
+
+function useStreamingText(text: string, isStreaming: boolean, streamKey: string) {
+  const [visibleText, setVisibleText] = useState(() =>
+    getInitialStreamingText(text, isStreaming, streamKey),
+  );
+  const visibleTextRef = useRef(visibleText);
+
+  useEffect(() => {
+    visibleTextRef.current = visibleText;
+  }, [visibleText]);
+
+  useEffect(() => {
+    const current = visibleTextRef.current;
+
+    if (!isStreaming && (current === text || !text.startsWith(current))) {
+      if (current !== text) {
+        visibleTextRef.current = text;
+        rememberStreamingText(streamKey, text);
+        setVisibleText(text);
+      }
+
+      return;
+    }
+
+    const catchUp = !isStreaming;
+    let interval: number | undefined;
+
+    const advance = () => {
+      const next = nextStreamingText(visibleTextRef.current, text, catchUp);
+
+      if (next !== visibleTextRef.current) {
+        visibleTextRef.current = next;
+        rememberStreamingText(streamKey, next);
+        setVisibleText(next);
+      }
+
+      if (catchUp && next === text && interval !== undefined) {
+        window.clearInterval(interval);
+        interval = undefined;
+      }
+    };
+
+    advance();
+
+    if (catchUp && visibleTextRef.current === text) {
+      return;
+    }
+
+    interval = window.setInterval(advance, STREAM_TEXT_TICK_MS);
+
+    return () => {
+      if (interval !== undefined) {
+        window.clearInterval(interval);
+      }
+    };
+  }, [isStreaming, streamKey, text]);
+
+  useEffect(() => {
+    if (!isStreaming && visibleText === text) {
+      streamingTextCache.delete(streamKey);
+    }
+  }, [isStreaming, streamKey, text, visibleText]);
+
+  return visibleText;
+}
+
+function getInitialStreamingText(text: string, isStreaming: boolean, streamKey: string) {
+  const cachedText = streamingTextCache.get(streamKey);
+
+  if (cachedText && text.startsWith(cachedText)) {
+    return cachedText;
+  }
+
+  return isStreaming ? "" : text;
+}
+
+function rememberStreamingText(streamKey: string, text: string) {
+  if (!text) {
+    return;
+  }
+
+  streamingTextCache.delete(streamKey);
+  streamingTextCache.set(streamKey, text);
+
+  if (streamingTextCache.size <= STREAM_TEXT_CACHE_LIMIT) {
+    return;
+  }
+
+  const oldestKey = streamingTextCache.keys().next().value;
+
+  if (oldestKey) {
+    streamingTextCache.delete(oldestKey);
+  }
+}
+
+function nextStreamingText(current: string, target: string, catchUp = false) {
+  if (current === target) {
+    return current;
+  }
+
+  if (!target.startsWith(current)) {
+    return target;
+  }
+
+  const remaining = target.length - current.length;
+  const step = catchUp
+    ? remaining > 160
+      ? 18
+      : remaining > 80
+        ? 12
+        : remaining > 32
+          ? 7
+          : remaining > 12
+            ? 4
+            : 2
+    : remaining > 160
+      ? 6
+      : remaining > 80
+        ? 5
+        : remaining > 32
+          ? 3
+          : remaining > 12
+            ? 2
+            : 1;
+
+  return target.slice(0, current.length + Math.min(remaining, step));
 }
 
 function ReasoningPart({
