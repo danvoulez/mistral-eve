@@ -1,8 +1,8 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { BugIcon, CircleDotIcon, HammerIcon } from "lucide-react";
-import { NotionIcon } from "@/components/icons";
+import { HammerIcon } from "lucide-react";
+import { LinearIcon, NotionIcon, SentryIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,8 +21,8 @@ type ConnectionItem = {
 
 const CONNECTION_ITEMS: readonly ConnectionItem[] = [
   { key: "notion", label: "Notion", Icon: NotionIcon },
-  { key: "linear", label: "Linear", Icon: CircleDotIcon },
-  { key: "sentry", label: "Sentry", Icon: BugIcon },
+  { key: "linear", label: "Linear", Icon: LinearIcon },
+  { key: "sentry", label: "Sentry", Icon: SentryIcon },
 ];
 
 export function IntegrationsMenu({
