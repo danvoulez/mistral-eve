@@ -553,19 +553,10 @@ function hasOpenChatTurn(events: readonly HandleMessageStreamEvent[]) {
   let open = false;
 
   for (const event of events) {
-    switch (event.type) {
-      case "turn.started":
-        open = true;
-        break;
-      case "authorization.required":
-      case "session.completed":
-      case "session.failed":
-      case "session.waiting":
-      case "turn.completed":
-        open = false;
-        break;
-      default:
-        break;
+    if (event.type === "turn.started") {
+      open = true;
+    } else if (isChatTurnSettledEvent(event)) {
+      open = false;
     }
   }
 
@@ -1363,6 +1354,7 @@ export function AgentChatSession({
       onSessionStarted: persistSessionState,
     });
     let cancelled = false;
+    let completed = false;
 
     resumeStartedRef.current = true;
     resumedEventsRef.current = [];
@@ -1437,6 +1429,7 @@ export function AgentChatSession({
         });
 
         onPendingUserMessageSettled?.();
+        completed = true;
       } catch (error) {
         if (!cancelled && !isAbortError(error)) {
           setClientError(error instanceof Error ? error.message : "Failed to resume stream.");
@@ -1450,6 +1443,9 @@ export function AgentChatSession({
 
     return () => {
       cancelled = true;
+      if (!completed) {
+        resumeStartedRef.current = false;
+      }
       abortController.abort();
     };
   }, [
