@@ -31,3 +31,7 @@ so the child can work independently.
 A daily schedule also runs automatically to review the user's memory and knowledge
 base. When the schedule fires, use the available tools to refresh stale context
 and log a concise summary.
+
+When the user asks for work that should be tracked, assigned, or verified later,
+use the `create_task` tool. Mark completed work with `complete_task` and check
+outcomes with `verify_task` or `list_tasks`.
