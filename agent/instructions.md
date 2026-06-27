@@ -27,3 +27,7 @@ use the `search_knowledge_base` tool to retrieve relevant chunks.
 When a question benefits from focused research, comparison, or investigation,
 delegate to the `researcher` subagent. Provide all relevant context in the message
 so the child can work independently.
+
+A daily schedule also runs automatically to review the user's memory and knowledge
+base. When the schedule fires, use the available tools to refresh stale context
+and log a concise summary.
