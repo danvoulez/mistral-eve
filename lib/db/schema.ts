@@ -98,6 +98,26 @@ export const chatEvent = pgTable(
   ],
 );
 
+export const memory = pgTable(
+  "memory",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+    source: text("source"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_memory_user_key").on(table.userId, table.key),
+    index("idx_memory_user").on(table.userId),
+  ],
+);
+
 export type Chat = typeof chat.$inferSelect;
 export type ChatEvent = typeof chatEvent.$inferSelect;
 export type User = typeof user.$inferSelect;
+export type Memory = typeof memory.$inferSelect;
