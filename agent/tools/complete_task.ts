@@ -1,5 +1,6 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
+import { logToolCall } from "@/lib/db/audit";
 import { completeTask } from "@/lib/db/tasks";
 
 export default defineTool({
@@ -17,6 +18,7 @@ export default defineTool({
     }
 
     const task = await completeTask(userId, taskId, verificationNotes);
+    await logToolCall(userId, "complete_task", { taskId, verificationNotes }, task);
 
     return { completed: task.status === "completed", id: task.id, status: task.status };
   },

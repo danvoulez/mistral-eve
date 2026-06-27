@@ -126,3 +126,16 @@ export async function updateTaskStatus(
 
   return row;
 }
+
+export async function deleteTaskForUser(userId: string, taskId: string) {
+  const [row] = await db
+    .delete(task)
+    .where(and(eq(task.id, taskId), eq(task.userId, userId)))
+    .returning({ id: task.id, title: task.title });
+
+  if (!row) {
+    throw new Error("Task not found.");
+  }
+
+  return row;
+}

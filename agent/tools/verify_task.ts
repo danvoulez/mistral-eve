@@ -1,5 +1,6 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
+import { logToolCall } from "@/lib/db/audit";
 import { verifyTask } from "@/lib/db/tasks";
 
 export default defineTool({
@@ -16,6 +17,7 @@ export default defineTool({
     }
 
     const task = await verifyTask(userId, taskId);
+    await logToolCall(userId, "verify_task", { taskId }, task);
 
     return {
       id: task.id,

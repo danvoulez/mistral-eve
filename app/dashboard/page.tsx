@@ -1,3 +1,4 @@
+import { getAuditLogAction } from "@/app/actions/audit";
 import { getDocumentsAction } from "@/app/actions/documents";
 import { getTasksAction } from "@/app/actions/tasks";
 import { getServerViewer } from "@/lib/session";
@@ -17,9 +18,10 @@ export default async function DashboardPage() {
     redirect("/");
   }
 
-  const [tasks, documents] = await Promise.all([
+  const [tasks, documents, auditLog] = await Promise.all([
     getTasksAction(),
     getDocumentsAction(),
+    getAuditLogAction(),
   ]);
 
   const openTasks = tasks.filter((task) => task.status === "open" || task.status === "in_progress").length;
@@ -56,12 +58,28 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="mb-3 text-lg font-medium">Knowledge base</h2>
         <p className="text-sm text-muted-foreground">
           {documents.length} document{documents.length === 1 ? "" : "s"} uploaded
           {readyDocuments > 0 ? `, ${readyDocuments} ready for search` : ""}.
         </p>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-medium">Audit log</h2>
+        {auditLog.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tool calls recorded yet.</p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {auditLog.map((entry) => (
+              <li className="px-4 py-3" key={entry.id}>
+                <p className="font-medium">{entry.toolName}</p>
+                <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

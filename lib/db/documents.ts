@@ -77,6 +77,21 @@ export async function getDocumentsForUser(userId: string) {
     .orderBy(document.createdAt);
 }
 
+export async function deleteDocumentForUser(userId: string, documentId: string) {
+  await deleteDocumentChunks(documentId);
+
+  const [row] = await db
+    .delete(document)
+    .where(and(eq(document.id, documentId), eq(document.userId, userId)))
+    .returning({ id: document.id, filename: document.filename });
+
+  if (!row) {
+    throw new Error("Document not found.");
+  }
+
+  return row;
+}
+
 export async function searchDocumentChunks(
   userId: string,
   embedding: number[],

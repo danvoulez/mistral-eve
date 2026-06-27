@@ -182,6 +182,22 @@ export const task = pgTable(
   ],
 );
 
+export const toolAuditLog = pgTable(
+  "tool_audit_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    input: text("input"),
+    result: text("result"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("idx_tool_audit_log_user").on(table.userId)],
+);
+
 export type Document = typeof document.$inferSelect;
 export type DocumentChunk = typeof documentChunk.$inferSelect;
 export type Task = typeof task.$inferSelect;
+export type ToolAuditLog = typeof toolAuditLog.$inferSelect;

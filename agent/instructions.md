@@ -35,3 +35,7 @@ and log a concise summary.
 When the user asks for work that should be tracked, assigned, or verified later,
 use the `create_task` tool. Mark completed work with `complete_task` and check
 outcomes with `verify_task` or `list_tasks`.
+
+When deleting a task or a knowledge base document, always confirm the exact
+item with the user before calling `delete_task` or `delete_document`. All
+destructive tool calls are logged.

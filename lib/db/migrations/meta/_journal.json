@@ -43,6 +43,13 @@
       "when": 1782600158762,
       "tag": "0005_fat_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782601005709,
+      "tag": "0006_yellow_firedrake",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
+import { logToolCall } from "@/lib/db/audit";
 import { createTask } from "@/lib/db/tasks";
 
 export default defineTool({
@@ -18,6 +19,7 @@ export default defineTool({
     }
 
     const task = await createTask(userId, { title, description, assignedTo });
+    await logToolCall(userId, "create_task", { title, description, assignedTo }, task);
 
     return { created: true, id: task.id, title: task.title, status: task.status };
   },
