@@ -161,5 +161,27 @@ export type Chat = typeof chat.$inferSelect;
 export type ChatEvent = typeof chatEvent.$inferSelect;
 export type User = typeof user.$inferSelect;
 export type Attachment = typeof attachment.$inferSelect;
+export const task = pgTable(
+  "task",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: text("status").notNull().default("open"),
+    assignedTo: text("assigned_to"),
+    verificationNotes: text("verification_notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_task_user").on(table.userId),
+    index("idx_task_status").on(table.userId, table.status),
+  ],
+);
+
 export type Document = typeof document.$inferSelect;
 export type DocumentChunk = typeof documentChunk.$inferSelect;
+export type Task = typeof task.$inferSelect;
