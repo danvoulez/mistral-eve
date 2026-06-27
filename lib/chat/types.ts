@@ -4,6 +4,7 @@ export type Viewer = {
   readonly email: string;
   readonly id: string;
   readonly image: string | null;
+  readonly isAnonymous: boolean;
   readonly name: string;
 };
 
