@@ -29,7 +29,9 @@ export default defineTool({
     scope: scopeSchema,
     limit: z.number().int().positive().max(50).optional().describe("Máximo de itens na view (default 10)."),
   }),
-  async execute({ goal, scope, limit }) {
-    return runProjection({ op: "scene.open", goal, scope, limit });
+  async execute({ goal, scope, limit }, ctx) {
+    const userId = ctx.session.auth.current?.principalId;
+    const scopeWithUser = userId ? { ...scope, stream_id: userId } : scope;
+    return runProjection({ op: "scene.open", goal, scope: scopeWithUser, limit });
   },
 });

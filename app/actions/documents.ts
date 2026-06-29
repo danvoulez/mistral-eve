@@ -13,7 +13,7 @@ import {
 import { getServerViewer } from "@/lib/session";
 import { getSetupStatus } from "@/lib/setup";
 import { chunkText } from "@/lib/rag/chunking";
-import { generateEmbedding } from "@/lib/rag/embedding";
+import { generateEmbeddings } from "@/lib/rag/embedding";
 import { db } from "@/lib/db/client";
 import { document } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -108,13 +108,12 @@ async function indexDocument(documentId: string, userId: string, url: string, me
     }
 
     const chunks = chunkText(text);
-    const indexedChunks = await Promise.all(
-      chunks.map(async (content, index) => ({
-        chunkIndex: index,
-        content,
-        embedding: await generateEmbedding(content),
-      })),
-    );
+    const embeddings = await generateEmbeddings(chunks);
+    const indexedChunks = chunks.map((content, index) => ({
+      chunkIndex: index,
+      content,
+      embedding: embeddings[index],
+    }));
 
     await insertDocumentChunks(documentId, userId, indexedChunks);
     await updateDocumentStatus(documentId, "ready");

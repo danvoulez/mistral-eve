@@ -7,10 +7,9 @@ import { runProjection } from "@/lib/projections/run";
 // (parent_projection_hash), aplica um movimento: drill/group/filter/ascend/
 // descend/compare/back/etc. O alvo de drill/descend vai em selection.focus.
 //
-// LIMITAÇÃO HONESTA (Parte 5 do guia, item 15): hoje a navegação RECALCULA a
-// cena a partir do reader; o parent_projection_hash é registrado em
-// parent_projection_hashes mas NÃO é usado para reabrir o parent exato por
-// lookup. "back por hash" e ladder persistente dependem do registry (item 6).
+// back por hash: `run.ts` reabre o parent exato persistido no registro
+// (projection table) quando `op === "scene.back"` e `parent_projection_hash` é
+// fornecido. Se o store estiver indisponível, cai para recálculo normal.
 
 const scopeSchema = z
   .object({
@@ -40,7 +39,9 @@ export default defineTool({
       .optional(),
     limit: z.number().int().positive().max(50).optional(),
   }),
-  async execute({ parent_projection_hash, op, goal, scope, selection, limit }) {
-    return runProjection({ op, goal, scope, parent_projection_hash, selection, limit });
+  async execute({ parent_projection_hash, op, goal, scope, selection, limit }, ctx) {
+    const userId = ctx.session.auth.current?.principalId;
+    const scopeWithUser = userId ? { ...scope, stream_id: userId } : scope;
+    return runProjection({ op, goal, scope: scopeWithUser, parent_projection_hash, selection, limit });
   },
 });

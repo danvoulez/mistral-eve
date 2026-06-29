@@ -2127,6 +2127,7 @@ function usePendingUserMessage() {
 }
 
 const CONNECTION_LABELS = {
+  lab: "Lab",
   linear: "Linear",
   notion: "Notion",
   sentry: "Sentry",
@@ -2150,10 +2151,16 @@ function createConnectionClientContext(enabledConnections: EnabledConnections) {
         ? ` Do not use disabled connections unless the user enables them first: ${disabled.join(", ")}.`
         : "";
 
-    return `The user has enabled these external connections for this turn: ${enabled.join(", ")}. Use an enabled connection when it is relevant to the user's request.${disabledContext}`;
+    let context = `The user has enabled these external connections for this turn: ${enabled.join(", ")}. Use an enabled connection when it is relevant to the user's request.${disabledContext}`;
+
+    if (!enabledConnections.lab) {
+      context += " Effects are disabled this turn; do not call propose_effect.";
+    }
+
+    return context;
   }
 
-  return "The user has disabled all external connections for this turn. Do not search or call connection tools unless the user enables a connection first.";
+  return "The user has disabled all external connections for this turn. Do not search or call connection tools unless the user enables a connection first. Effects are disabled this turn; do not call propose_effect.";
 }
 
 function useThinkingPresence(active: boolean) {

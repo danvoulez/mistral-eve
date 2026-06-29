@@ -1,7 +1,7 @@
 import { defineTool } from "eve/tools";
 import { always } from "eve/tools/approval";
 import { z } from "zod";
-import { dispatchEffect } from "@/lib/lab/client";
+import { resolveLab } from "@/lib/lab/registry";
 import { logToolCall } from "@/lib/db/audit";
 
 // Consequência via airlock (item 13). É o oposto de build_projection: percepção
@@ -32,17 +32,13 @@ export default defineTool({
   }),
   needsApproval: always(),
   async execute(input, ctx) {
-    const result = await dispatchEffect(input);
+    const userId = ctx.session.auth.current?.principalId;
+    const lab = resolveLab();
+    const result = await lab.admit({ ...input, userId });
     const payload = { ok: result.dispatched, intent: input.intent, ...result };
 
-    // Receipt: a tool call vira evidência (best-effort, não quebra o efeito).
-    const userId = ctx.session.auth.current?.principalId;
     if (userId) {
-      try {
-        await logToolCall(userId, "propose_effect", input, payload);
-      } catch {
-        // log indisponível → segue
-      }
+      try { await logToolCall(userId, "propose_effect", input, payload); } catch {}
     }
 
     return payload;

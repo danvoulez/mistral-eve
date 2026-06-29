@@ -117,6 +117,7 @@ export type SceneScope = {
   process?: string;
   process_id?: string;
   content_hash?: string;
+  /** Conventional: authenticated principalId (userId) passed as stream_id for scoped reads. */
   stream_id?: string;
 };
 
