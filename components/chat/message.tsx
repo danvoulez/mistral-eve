@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Markdown } from "@/components/chat/markdown";
+import { ProjectionCard } from "@/components/chat/tool/projection-card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -448,6 +449,7 @@ function ToolGroup({
   const label = summarizeToolGroup(parts, status);
   const canExpand =
     parts.length > 1 ? parts.some(hasToolDetails) : hasToolDetails(parts[0]!);
+  const projectionCoverage = getProjectionCoverage(parts);
 
   useEffect(() => {
     if (shouldOpen) {
@@ -480,6 +482,7 @@ function ToolGroup({
           />
         ) : null}
       </CollapsibleTrigger>
+      {projectionCoverage ? <ProjectionCoverageLine coverage={projectionCoverage} /> : null}
       {canExpand ? (
         <CollapsibleContent className="ml-2 border-l border-border/40 pl-3 pt-0.5 pb-1">
           {parts.length === 1 ? (
@@ -574,6 +577,10 @@ function ToolDetails({
   readonly part: EveDynamicToolPart;
 }) {
   const hasOutput = part.state === "output-available" || part.state === "output-error";
+
+  if (isProjectionCardPart(part)) {
+    return <ProjectionCard output={part.output} />;
+  }
 
   return (
     <div className="space-y-1.5">
@@ -877,6 +884,11 @@ function toolCategory(name: string) {
 
 function describeToolAction(part: EveDynamicToolPart, status = getToolStatus(part)) {
   const name = resolveToolName(part);
+
+  if (PROJECTION_TOOL_NAMES.has(name)) {
+    return describeProjectionAction(part, status);
+  }
+
   const normalized = normalizeToolName(name);
   const input = asRecord(part.input);
   const query = readString(input, ["query", "q", "search", "pattern", "prompt", "text"]);
@@ -934,6 +946,85 @@ function describeToolAction(part: EveDynamicToolPart, status = getToolStatus(par
 function resolveToolName(part: EveDynamicToolPart) {
   const metadataName = part.toolMetadata?.eve?.name;
   return metadataName && metadataName !== "unknown" ? metadataName : part.toolName;
+}
+
+const PROJECTION_TOOL_NAMES = new Set(["build_projection", "navigate_projection"]);
+
+/** Projection tool calls with a successful scene render as a ProjectionCard. */
+function isProjectionCardPart(part: EveDynamicToolPart): boolean {
+  if (!PROJECTION_TOOL_NAMES.has(resolveToolName(part))) {
+    return false;
+  }
+  if (part.state !== "output-available") {
+    return false;
+  }
+  const out = part.output as { ok?: boolean; scene?: unknown } | undefined;
+  return Boolean(out && out.ok === true && out.scene);
+}
+
+// Narração viva da ação de projeção (backstage): "pedindo tal view", "navegando".
+function describeProjectionAction(part: EveDynamicToolPart, status: ToolStatus) {
+  const running = status === "running";
+  const input = asRecord(part.input);
+  const goal = readString(input, ["goal"]);
+  const op = readString(input, ["op"]);
+
+  if (resolveToolName(part) === "navigate_projection") {
+    const label = op ? op.replace(/^scene\./, "") : "ladder";
+    return running ? `Navegando a projeção: ${label}…` : `Navegou a projeção: ${label}`;
+  }
+
+  if (goal) {
+    return running ? `Pedindo projeção: ${truncateInline(goal, 60)}…` : `Projeção: ${truncateInline(goal, 60)}`;
+  }
+
+  return running ? "Pedindo projeção…" : "Projeção";
+}
+
+type ProjectionCoverage = {
+  visible: number;
+  total: number;
+  omitted: number;
+  partial: boolean;
+};
+
+// Honestidade de cobertura da última projeção do grupo — a única parte do
+// mecanismo que interessa ao humano (o quanto confiar na resposta).
+function getProjectionCoverage(parts: readonly EveDynamicToolPart[]): ProjectionCoverage | null {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]!;
+    if (!isProjectionCardPart(part)) {
+      continue;
+    }
+    const scene = (part.output as { scene?: Record<string, unknown> }).scene;
+    const loss = scene?.loss_accounting as
+      | { visible_count?: number; total_candidates?: number; omitted_count?: number }
+      | undefined;
+    if (!loss) {
+      continue;
+    }
+    const warnings = (scene?.warnings as Array<{ kind?: string }> | undefined) ?? [];
+    return {
+      visible: loss.visible_count ?? 0,
+      total: loss.total_candidates ?? 0,
+      omitted: loss.omitted_count ?? 0,
+      partial: warnings.some((w) => w.kind === "partial_source"),
+    };
+  }
+  return null;
+}
+
+function ProjectionCoverageLine({ coverage }: { readonly coverage: ProjectionCoverage }) {
+  const { visible, total, omitted, partial } = coverage;
+  const text =
+    total === 0
+      ? partial
+        ? "Sem dados: runtime de projeção ausente ou ledger vazio."
+        : "Projeção sem itens."
+      : `Baseado em ${visible} de ${total} ${total === 1 ? "item" : "itens"}` +
+        (omitted > 0 ? ` · ${omitted} não examinado${omitted === 1 ? "" : "s"}` : "");
+
+  return <p className="px-2 pt-0.5 text-xs text-muted-foreground/80">{text}</p>;
 }
 
 function formatToolName(name: string) {
