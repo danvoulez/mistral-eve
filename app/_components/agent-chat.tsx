@@ -47,6 +47,7 @@ import {
 import { UploadedAttachmentList } from "@/components/chat/attachments";
 import { IntegrationsMenu } from "@/components/chat/integrations-menu";
 import { AgentMessage } from "@/components/chat/message";
+import { ProjectionNavProvider } from "@/components/chat/tool/projection-card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isChatTurnSettledEvent } from "@/lib/chat/events";
@@ -1588,6 +1589,15 @@ export function AgentChatSession({
     void sendMessage(last.text, { clearDraft: () => {}, restoreDraft: () => {} }, last.attachments);
   }, [isTurnBlocked, localPendingUserMessageRef, sendMessage]);
 
+  // ProjectionCard dispara navegação da ladder enviando uma instrução ao agente,
+  // que então chama navigate_projection. O card não chama a tool diretamente.
+  const navigateProjection = useCallback(
+    (instruction: string) => {
+      void sendMessage(instruction, { clearDraft: () => {}, restoreDraft: () => {} });
+    },
+    [sendMessage],
+  );
+
   useEffect(() => {
     onControllerChange(
       {
@@ -1686,24 +1696,26 @@ export function AgentChatSession({
                     />
                   ) : null;
                 })()}
-                {visibleMessages.map((message, index) => (
-                  <AgentMessage
-                    canRespond={
-                      !isTurnBlocked &&
-                      !isWaitingForAuthorization &&
-                      Boolean(viewer) &&
-                      isSetupReady
-                    }
-                    isLast={index === visibleMessages.length - 1 && message.role === "assistant"}
-                    isStreaming={
-                      agent.status === "streaming" && index === visibleMessages.length - 1
-                    }
-                    key={message.id}
-                    message={message}
-                    onInputResponses={handleInputResponses}
-                    onRetry={message.role === "assistant" ? retry : undefined}
-                  />
-                ))}
+                <ProjectionNavProvider navigate={navigateProjection}>
+                  {visibleMessages.map((message, index) => (
+                    <AgentMessage
+                      canRespond={
+                        !isTurnBlocked &&
+                        !isWaitingForAuthorization &&
+                        Boolean(viewer) &&
+                        isSetupReady
+                      }
+                      isLast={index === visibleMessages.length - 1 && message.role === "assistant"}
+                      isStreaming={
+                        agent.status === "streaming" && index === visibleMessages.length - 1
+                      }
+                      key={message.id}
+                      message={message}
+                      onInputResponses={handleInputResponses}
+                      onRetry={message.role === "assistant" ? retry : undefined}
+                    />
+                  ))}
+                </ProjectionNavProvider>
                 {pendingAuthorizations.map((authorization) => (
                   <ConnectionAuthorizationPrompt
                     authorization={authorization}

@@ -231,6 +231,27 @@ export const notification = pgTable(
   ],
 );
 
+// Dynamic Projection registry (item 6 do transplante). Content-addressed: o
+// projection_hash É o endereço, então a PK é o próprio hash e a mesma projeção
+// produz a mesma linha (insert idempotente). Read-only / sobre o Lab — sem FK de
+// usuário; created_by é só proveniência.
+export const projection = pgTable(
+  "projection",
+  {
+    projectionHash: text("projection_hash").primaryKey(),
+    parentProjectionHashes: jsonb("parent_projection_hashes").$type<string[]>().notNull(),
+    ladderLevel: integer("ladder_level").notNull().default(0),
+    goal: text("goal"),
+    op: text("op").notNull(),
+    scope: jsonb("scope").$type<Record<string, unknown>>(),
+    lossAccounting: jsonb("loss_accounting"),
+    body: jsonb("body").notNull(),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("idx_projection_created_at").on(table.createdAt)],
+);
+
 export type Chat = typeof chat.$inferSelect;
 export type ChatEvent = typeof chatEvent.$inferSelect;
 export type User = typeof user.$inferSelect;
@@ -241,3 +262,4 @@ export type Memory = typeof memory.$inferSelect;
 export type Task = typeof task.$inferSelect;
 export type ToolAuditLog = typeof toolAuditLog.$inferSelect;
 export type Notification = typeof notification.$inferSelect;
+export type Projection = typeof projection.$inferSelect;
